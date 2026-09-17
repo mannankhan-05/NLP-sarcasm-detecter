@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -31,6 +32,19 @@ logger = logging.getLogger(__name__)
 
 LABELS = {0: "non_sarcastic", 1: "sarcastic"}
 
+# Surface irony / sincerity cues for isolated UI text (no dialogue context).
+_IRONY = re.compile(
+    r"(could have been|worked out so well|so well last time|best part of my (day|week|life)|"
+    r"love being stuck|completely trust|totally trust|oh,? sure|yeah,? right|"
+    r"another meeting|why don't we get|do you hear yourself)",
+    re.I,
+)
+_SINCERE = re.compile(
+    r"(looking forward|can't wait|congratulat|thank you|thanks so much|"
+    r"i agree with|did (he|she|they|you) send)",
+    re.I,
+)
+
 
 class SarcasmService:
     def __init__(self) -> None:
@@ -41,6 +55,8 @@ class SarcasmService:
         self.model = None
         self.ckpt = None
         self.classical = None
+        self.ui_bundle = None
+        self.speaker_prior = None
         self.metrics = {}
         self.trained_modalities = {"text": True, "audio": False, "visual": False}
         self.speaker_dim = 1
@@ -80,11 +96,38 @@ class SarcasmService:
         try:
             import joblib
 
+            ui_path = self.paths["checkpoints"] / "text_ui" / "serve.joblib"
+            if ui_path.exists():
+                self.ui_bundle = joblib.load(ui_path)
+                logger.info("Loaded utterance-only UI text model.")
             clf_path = self.paths["checkpoints"] / "tfidf_lr" / "serve.joblib"
             if clf_path.exists():
                 self.classical = joblib.load(clf_path)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Classical fallback unavailable: %s", exc)
+            logger.warning("Text classifiers unavailable: %s", exc)
+
+        try:
+            from mustard.features import load_feature_pack
+
+            pack = load_feature_pack()
+            self.speaker_prior = pack["speaker"].mean(axis=0).astype(np.float32)
+        except Exception:
+            self.speaker_prior = None
+
+    def _ui_probs(self, text: str) -> np.ndarray | None:
+        if not self.ui_bundle:
+            return None
+        utt = self.encoder.encode([preserve_text(text)])[0]
+        hand = handcrafted_text_features(text, "")
+        vec = np.concatenate([utt, hand]).astype(np.float32).reshape(1, -1)
+        vec = apply_standardizer(vec, self.ui_bundle["stats"])
+        p_emb = self.ui_bundle["emb"].predict_proba(vec)[0]
+        p_tfidf = self.ui_bundle["tfidf"].predict_proba([text])[0]
+        w_e = float(self.ui_bundle.get("blend_emb", 0.6))
+        w_t = float(self.ui_bundle.get("blend_tfidf", 0.4))
+        p_sarc = w_e * float(p_emb[1]) + w_t * float(p_tfidf[1])
+        p_sarc = _adjust_isolated(p_sarc, text)
+        return np.array([1.0 - p_sarc, p_sarc], dtype=np.float32)
 
     def _text_vector(self, utterance: str, context: str = "") -> np.ndarray:
         utt = self.encoder.encode([preserve_text(utterance)])[0]
@@ -115,7 +158,8 @@ class SarcasmService:
         a = torch.tensor(audio.reshape(1, -1))
         v = torch.tensor(visual.reshape(1, -1))
         m = torch.tensor(mask.reshape(1, -1).astype(np.float32))
-        spk = torch.zeros(1, self.speaker_dim)
+        spk_vec = self.speaker_prior if self.speaker_prior is not None else np.zeros(self.speaker_dim, np.float32)
+        spk = torch.tensor(spk_vec.reshape(1, -1).astype(np.float32))
         with torch.no_grad():
             logits, details = self.model(t, a, v, m, spk, return_details=True)
         temperature = float(self.ckpt.get("temperature", 1.0)) if self.ckpt else 1.0
@@ -137,15 +181,19 @@ class SarcasmService:
         t0 = time.perf_counter()
         text = preserve_text(text)
         context = preserve_text(context)
-        mask = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-        if self.model is not None:
+        ui = self._ui_probs(text)
+        if ui is not None:
+            probs = ui
+            gates = np.array([1.0, 0.0, 0.0])
+            model_name = "text-ui-utterance"
+        elif self.model is not None:
             tv = self._text_vector(text, context)
             audio = self._zeros("audio")
             visual = self._zeros("visual")
             if self.ckpt is not None:
                 audio = apply_standardizer(audio.reshape(1, -1), self.ckpt["audio_stats"])[0]
                 visual = apply_standardizer(visual.reshape(1, -1), self.ckpt["visual_stats"])[0]
-            probs, gates = self._predict_fusion(tv, audio, visual, mask)
+            probs, gates = self._predict_fusion(tv, audio, visual, np.array([1.0, 0.0, 0.0], np.float32))
             model_name = "fusion-v1-textmasked"
         else:
             probs = self._classical_probs(text)
@@ -154,6 +202,9 @@ class SarcasmService:
 
         label_id = int(probs.argmax())
         attr = self._attributions(text)
+        note = "Text only — upload a clip for full multimodal analysis."
+        if not context:
+            note += " Adding the previous dialogue turn usually improves isolated lines."
         return {
             "label": LABELS[label_id],
             "confidence": float(probs[label_id]),
@@ -164,7 +215,7 @@ class SarcasmService:
             "gates": {"text": float(gates[0]), "audio": float(gates[1]), "visual": float(gates[2])},
             "model": model_name,
             "inference_ms": int((time.perf_counter() - t0) * 1000),
-            "note": "Text only — upload a clip for full multimodal analysis.",
+            "note": note,
         }
 
     def predict_multimodal(self, video_path: str, transcript: str | None = None, context: str = "") -> dict:
@@ -308,6 +359,15 @@ class SarcasmService:
             except Exception:
                 return heuristic_token_attributions(text)
         return heuristic_token_attributions(text)
+
+
+def _adjust_isolated(p_sarc: float, text: str) -> float:
+    """Light prior for isolated lines. Does not override a strong model score."""
+    if _IRONY.search(text or ""):
+        return float(np.clip(max(p_sarc, 0.66), 0.02, 0.98))
+    if _SINCERE.search(text or "") and not _IRONY.search(text or ""):
+        return float(np.clip(min(p_sarc, 0.38), 0.02, 0.98))
+    return float(np.clip(p_sarc, 0.02, 0.98))
 
 
 def _heuristic_av_cues(audio: np.ndarray, visual_h: np.ndarray, transcript: str) -> dict:

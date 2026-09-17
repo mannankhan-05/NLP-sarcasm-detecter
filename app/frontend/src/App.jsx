@@ -189,7 +189,7 @@ export default function App() {
                 id="context"
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                placeholder="What was said just before this line"
+                placeholder="What was said just before this line (recommended — isolated text is weaker)"
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-mustard-50/60 px-4 py-3 outline-none ring-mustard-400 focus:ring-2 dark:border-white/10 dark:bg-ink-800"
               />
               <div className="mt-4 flex flex-wrap gap-2" aria-label="Example inputs">
