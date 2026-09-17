@@ -1,0 +1,29 @@
+{
+  "n_utterances": 1202,
+  "n_sarcastic": 601,
+  "n_non_sarcastic": 601,
+  "balanced": true,
+  "expected_n": 1202,
+  "n_matches_paper": true,
+  "n_shows": 5,
+  "n_speakers": 27,
+  "n_with_video": 0,
+  "n_with_audio": 0,
+  "shows": {
+    "BBT": 716,
+    "FRIENDS": 354,
+    "SV": 78,
+    "GOLDENGIRLS": 40,
+    "SARCASMOHOLICS": 14
+  },
+  "mean_utt_tokens": 11.319467554076539,
+  "mean_ctx_tokens": 31.76622296173045,
+  "sarcasm_types": {
+    "NONE": 601,
+    "PRO": 333,
+    "ILL": 178,
+    "EMB": 87,
+    "LIK": 3
+  },
+  "missing_video": 1202
+}

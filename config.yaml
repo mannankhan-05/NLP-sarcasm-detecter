@@ -1,0 +1,73 @@
+seed: 42
+project_name: MUSTARD
+tagline: Detecting the gap between what is said and what is meant.
+
+paths:
+  raw_csv: data/raw/mustard++_text.csv
+  videos: data/videos
+  audio: data/audio
+  processed: data/processed
+  features: artifacts/features
+  checkpoints: artifacts/checkpoints
+  figures: artifacts/figures
+  metrics: artifacts/metrics
+  keyframes: artifacts/keyframes
+  logs: artifacts/logs
+  hf_cache: artifacts/hf_cache
+
+dataset:
+  name: MUStARD++
+  n_expected: 1202
+  n_sarcastic_expected: 601
+  source_repo: https://github.com/cfiltnlp/MUStARD_Plus_Plus
+  csv_url: https://raw.githubusercontent.com/cfiltnlp/MUStARD_Plus_Plus/main/mustard++_text.csv
+  video_drive_folder: https://drive.google.com/drive/folders/1kUdT2yU7ERJ5KdauObTj5oQsBlSrvTlW
+  paper: https://aclanthology.org/2022.lrec-1.756.pdf
+
+text:
+  model_name: distilroberta-base
+  max_length: 128
+  embedding_dim: 768
+  keep_casing: true
+  keep_punctuation: true
+
+audio:
+  sample_rate: 16000
+  n_mfcc: 13
+  n_fft: 1024
+  hop_length: 256
+  top_db: 30
+  feature_dim: 48
+
+visual:
+  target_fps: 2
+  max_frames: 8
+  image_size: 224
+  backbone: resnet18
+  backbone_dim: 512
+  handcrafted_dim: 24
+
+train:
+  n_folds: 5
+  batch_size: 32
+  epochs: 40
+  lr: 0.001
+  weight_decay: 0.001
+  dropout: 0.45
+  hidden: 128
+  patience: 7
+  modality_dropout: 0.25
+  min_delta: 0.001
+  speaker_independent_holdout_show: FRIENDS
+  num_workers: 0
+
+fusion:
+  d_model: 128
+  n_heads: 4
+  dropout: 0.4
+
+multitask:
+  enabled: true
+  lambda_emotion: 0.15
+  lambda_valence: 0.05
+  lambda_arousal: 0.05

@@ -1,0 +1,354 @@
+{
+  "model": "fusion_attn",
+  "accuracy": 0.62149377593361,
+  "accuracy_std": 0.02301528919287766,
+  "macro_f1": 0.6206381008119426,
+  "macro_f1_std": 0.023059270926677613,
+  "precision": 0.6226690401854886,
+  "recall": 0.6215358126721763,
+  "roc_auc": 0.6694144857667585,
+  "ece": 0.031108890763931786,
+  "confusion_matrix": [
+    [
+      381,
+      220
+    ],
+    [
+      235,
+      366
+    ]
+  ],
+  "ablation_table": {
+    "text": {
+      "macro_f1": 0.6206381008119426,
+      "macro_f1_std": 0.023059270926677613,
+      "accuracy": 0.62149377593361,
+      "note": "Audio/visual channels are zero when clips were missing at train time."
+    },
+    "audio": {
+      "macro_f1": 0.33296398891966755,
+      "macro_f1_std": 0.00045235267641424834,
+      "accuracy": 0.4991701244813278,
+      "note": "Audio/visual channels are zero when clips were missing at train time."
+    },
+    "visual": {
+      "macro_f1": 0.33296398891966755,
+      "macro_f1_std": 0.00045235267641424834,
+      "accuracy": 0.4991701244813278,
+      "note": "Audio/visual channels are zero when clips were missing at train time."
+    },
+    "text+audio": {
+      "macro_f1": 0.6206381008119426,
+      "macro_f1_std": 0.023059270926677613,
+      "accuracy": 0.62149377593361,
+      "note": "Audio/visual channels are zero when clips were missing at train time."
+    },
+    "text+visual": {
+      "macro_f1": 0.6206381008119426,
+      "macro_f1_std": 0.023059270926677613,
+      "accuracy": 0.62149377593361,
+      "note": "Audio/visual channels are zero when clips were missing at train time."
+    },
+    "audio+visual": {
+      "macro_f1": 0.33296398891966755,
+      "macro_f1_std": 0.00045235267641424834,
+      "accuracy": 0.4991701244813278,
+      "note": "Audio/visual channels are zero when clips were missing at train time."
+    },
+    "text+audio+visual": {
+      "macro_f1": 0.6206381008119426,
+      "macro_f1_std": 0.023059270926677613,
+      "accuracy": 0.62149377593361,
+      "note": "Audio/visual channels are zero when clips were missing at train time."
+    }
+  },
+  "trained_modalities": {
+    "text": true,
+    "audio": false,
+    "visual": false
+  },
+  "n_folds": 5,
+  "protocol": "5-fold stratified CV, mean \u00b1 std. Speaker-independent split held out separately.",
+  "speaker_independent": {
+    "accuracy": 0.6751412429378532,
+    "precision": 0.6718509984639016,
+    "recall": 0.6751867680161812,
+    "macro_f1": 0.6719343062752334,
+    "weighted_f1": 0.6766988978882683,
+    "roc_auc": 0.7238769451603432,
+    "confusion_matrix": [
+      [
+        137,
+        66
+      ],
+      [
+        49,
+        102
+      ]
+    ],
+    "brier": 0.21617934540262715,
+    "ece": 0.08288850799455481
+  },
+  "all_models": {
+    "tfidf_lr": {
+      "accuracy": 0.5964972337482711,
+      "macro_f1": 0.595974889094092,
+      "macro_f1_std": 0.017487735875222357,
+      "precision": 0.5970216245314521,
+      "recall": 0.5964876033057851,
+      "roc_auc": 0.6161726354453627,
+      "ece": 0.04745403854451672,
+      "confusion_matrix": [
+        [
+          378,
+          223
+        ],
+        [
+          262,
+          339
+        ]
+      ]
+    },
+    "tfidf_svm": {
+      "accuracy": 0.5848616874135546,
+      "macro_f1": 0.5842612513704201,
+      "macro_f1_std": 0.020281070331321895,
+      "precision": 0.5853946700388383,
+      "recall": 0.5848415977961433,
+      "roc_auc": 0.6145532598714418,
+      "ece": 0.0405451108826085,
+      "confusion_matrix": [
+        [
+          368,
+          233
+        ],
+        [
+          266,
+          335
+        ]
+      ]
+    },
+    "text_mlp": {
+      "accuracy": 0.6156811894882435,
+      "macro_f1": 0.6145830644063989,
+      "macro_f1_std": 0.03303546278291429,
+      "precision": 0.616636448926432,
+      "recall": 0.6156267217630854,
+      "roc_auc": 0.6797952249770431,
+      "ece": 0.06866733800377671,
+      "confusion_matrix": [
+        [
+          369,
+          232
+        ],
+        [
+          230,
+          371
+        ]
+      ]
+    },
+    "early_fusion": {
+      "accuracy": 0.6322994467496542,
+      "macro_f1": 0.6314142665897553,
+      "macro_f1_std": 0.02505906142228545,
+      "precision": 0.6335095910647384,
+      "recall": 0.6323691460055096,
+      "roc_auc": 0.6758534205693296,
+      "ece": 0.07217226090994283,
+      "confusion_matrix": [
+        [
+          390,
+          211
+        ],
+        [
+          231,
+          370
+        ]
+      ]
+    },
+    "late_fusion": {
+      "accuracy": 0.6182019363762102,
+      "macro_f1": 0.6176377834428931,
+      "macro_f1_std": 0.03476259573772634,
+      "precision": 0.6186580774459897,
+      "recall": 0.6181611570247935,
+      "roc_auc": 0.672546831955923,
+      "ece": 0.07308694778386385,
+      "confusion_matrix": [
+        [
+          363,
+          238
+        ],
+        [
+          221,
+          380
+        ]
+      ]
+    },
+    "fusion_attn": {
+      "accuracy": 0.62149377593361,
+      "macro_f1": 0.6206381008119426,
+      "macro_f1_std": 0.023059270926677613,
+      "precision": 0.6226690401854886,
+      "recall": 0.6215358126721763,
+      "roc_auc": 0.6694144857667585,
+      "ece": 0.0568864194639697,
+      "confusion_matrix": [
+        [
+          381,
+          220
+        ],
+        [
+          235,
+          366
+        ]
+      ]
+    }
+  },
+  "error_analysis": [
+    {
+      "utterance_id": "2_504",
+      "show": "FRIENDS",
+      "speaker": "PHOEBE",
+      "utterance": "All right, okay, well, apparently not!",
+      "context": "So you like the drums! That's, that's great! Y'know, I was worried, that, you know, they would maybe an unbearable living situation.",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.10786296427249908,
+      "fold": 1,
+      "commentary": "High-confidence miss: the wording looks sincere without the delivery."
+    },
+    {
+      "utterance_id": "2_423",
+      "show": "FRIENDS",
+      "speaker": "MONICA",
+      "utterance": "Like I have nothing better to do!",
+      "context": "Richard! Actually, I'm not here to complement the chef. Ohh .. Oh, that's okay I hate when people come back to complement the chef.",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.12154319882392883,
+      "fold": 1,
+      "commentary": "Likely needs the prior turn \u2014 isolated, this line is ambiguous even to people."
+    },
+    {
+      "utterance_id": "1_3348",
+      "show": "BBT",
+      "speaker": "BERNADETTE",
+      "utterance": "Raj, you should've seen Leonard's experiment. The interference pattern was so cool when the electron beam was on.",
+      "context": "Should I give him another chance? It's up to you. He didn't call your experiment stupid. Come here, tushy face. \"Tushy face. \" That is going on twitter right now.",
+      "true": 0,
+      "pred": 1,
+      "p_sarcastic": 0.8707970976829529,
+      "fold": 1,
+      "commentary": "Hyperbole and punctuation may have been over-weighted relative to speaker intent."
+    },
+    {
+      "utterance_id": "2_548",
+      "show": "FRIENDS",
+      "speaker": "PERSON",
+      "utterance": "Almost! But first, we gotta start.",
+      "context": "All right, I'm outta here! I'm kidding! I'm kidding! So were done then!",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.1463748812675476,
+      "fold": 1,
+      "commentary": "Deadpan sitcom delivery is not recoverable from text tokens alone."
+    },
+    {
+      "utterance_id": "1_7442",
+      "show": "BBT",
+      "speaker": "SHELDON",
+      "utterance": "The original title was \"A Rederivation of Maxwell's Equations Regarding Electromagnetism\"\" I dumbed it down because some of the more religious people in town were starting to say I was a witch.",
+      "context": "This will interest you. And, Penny, feel free to paint your nails. What do you got? I believe Alex may have unearthed the grade school science project that could be my ticket to the Nobel Prize. Behold. \"Magnets: What Do They Stick To?\" If ",
+      "true": 0,
+      "pred": 1,
+      "p_sarcastic": 0.8416052460670471,
+      "fold": 1,
+      "commentary": "Possible laugh-track / audience cue in the original clip that text cannot see."
+    },
+    {
+      "utterance_id": "3_S02E03_218",
+      "show": "SV",
+      "speaker": "GILFOYLE",
+      "utterance": "Do you want me to be honest or nice?",
+      "context": "Guys, if I list you as references, can I count on you to say nice things about me? Be honest.",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.15866653621196747,
+      "fold": 1,
+      "commentary": "Speaker-specific style (e.g. Chandler/Sheldon) can look sarcastic when it is not."
+    },
+    {
+      "utterance_id": "1_7661",
+      "show": "BBT",
+      "speaker": "SHELDON",
+      "utterance": "Yeah, that was five weeks ago. How much longer is he gonna milk that cow?",
+      "context": "There it is again. Do you kiss your mother with that mouth? Oh, well, I'm sorry for your loss. - Oh! - Good night, sir. Unbelievable. He says Wolowitz deserves my spot because he's a high-profile asset to the university. Well, he's not wron",
+      "true": 0,
+      "pred": 1,
+      "p_sarcastic": 0.832665205001831,
+      "fold": 1,
+      "commentary": "Sentiment polarity of the utterance matches the context, so incongruity features stay quiet."
+    },
+    {
+      "utterance_id": "2_155",
+      "show": "FRIENDS",
+      "speaker": "CHANDLER",
+      "utterance": "Great! Now we can do laundry all night. All night laundry!",
+      "context": "Actually, I was gonna do some laundry. Chandler, do you wanna do it with me? Sure I will do it with you You don't mind do you, that would really help me a lot Thanks. I don't think I have enough quarters I have quarters!",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.172855406999588,
+      "fold": 1,
+      "commentary": "Short utterance; little lexical evidence for either class."
+    },
+    {
+      "utterance_id": "2_1",
+      "show": "FRIENDS",
+      "speaker": "CHANDLER",
+      "utterance": "Yes you can. You're thinking about time, you can't go back in time.",
+      "context": "You know what I knew something like this is gonna happen What are you doing? Chandler, you can't just go back a phase",
+      "true": 0,
+      "pred": 1,
+      "p_sarcastic": 0.8242061138153076,
+      "fold": 3,
+      "commentary": "Politeness markers ('sure', 'great', 'right') fire the sarcasm lexicon too eagerly."
+    },
+    {
+      "utterance_id": "1_4031",
+      "show": "BBT",
+      "speaker": "SHELDON",
+      "utterance": "In 1917, when Albert Einstein established the theoretic foundation for the laser in his paper <i>\"Zur Quantentheorie der</i> <i>Strahlung,\"</i> his fondest hope was that the resultant device be bitchin'.",
+      "context": "Happy now? I'm moving the dirty sock. Thank you. Raj, keep an eye out for the other one. Hey, guys, this is my friend Zack. Hey. Hello. Whoa! Is that the laser? It's bitchin'. Yes.",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.17673653364181519,
+      "fold": 1,
+      "commentary": "Quoted or echoed speech is hard to score without knowing who is being mimicked."
+    },
+    {
+      "utterance_id": "1_S09E10_208",
+      "show": "BBT",
+      "speaker": "PENNY",
+      "utterance": "Nobody knows. That's why he's number one.",
+      "context": "Oh, my God, he won't stop. How does he keep coming up with new ways to be annoying?",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.18107309937477112,
+      "fold": 1,
+      "commentary": "Emotion label in the corpus disagrees with surface wording \u2014 multi-task signal would help."
+    },
+    {
+      "utterance_id": "3_S04E07_292",
+      "show": "SV",
+      "speaker": "OTHER",
+      "utterance": "Now I can give it to ERLICH.",
+      "context": "(fridge chimes) Uh-oh! That yogurt is expired. See? This could've killed me.",
+      "true": 1,
+      "pred": 0,
+      "p_sarcastic": 0.1847211718559265,
+      "fold": 1,
+      "commentary": "Show-specific joke structure that does not transfer across sitcoms."
+    }
+  ]
+}

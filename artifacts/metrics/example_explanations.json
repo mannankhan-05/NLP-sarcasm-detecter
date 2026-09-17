@@ -1,0 +1,275 @@
+[
+  {
+    "text": "Oh great, another meeting that could have been an email.",
+    "token_attributions": [
+      {
+        "token": "Oh",
+        "score": -0.0954
+      },
+      {
+        "token": "great",
+        "score": -0.7968
+      },
+      {
+        "token": ",",
+        "score": -0.6475
+      },
+      {
+        "token": "another",
+        "score": -1.0
+      },
+      {
+        "token": "meeting",
+        "score": -0.5023
+      },
+      {
+        "token": "that",
+        "score": -0.6733
+      },
+      {
+        "token": "could",
+        "score": -0.7443
+      },
+      {
+        "token": "have",
+        "score": -0.2746
+      },
+      {
+        "token": "been",
+        "score": -0.2445
+      },
+      {
+        "token": "an",
+        "score": -0.3706
+      },
+      {
+        "token": "email",
+        "score": -0.7462
+      },
+      {
+        "token": ".",
+        "score": -0.0672
+      }
+    ]
+  },
+  {
+    "text": "Yeah, because that worked out so well last time.",
+    "token_attributions": [
+      {
+        "token": "Yeah",
+        "score": -0.5017
+      },
+      {
+        "token": ",",
+        "score": -0.7733
+      },
+      {
+        "token": "because",
+        "score": -0.6489
+      },
+      {
+        "token": "that",
+        "score": -0.7976
+      },
+      {
+        "token": "worked",
+        "score": -0.3192
+      },
+      {
+        "token": "out",
+        "score": -0.4097
+      },
+      {
+        "token": "so",
+        "score": -0.5388
+      },
+      {
+        "token": "well",
+        "score": -0.8136
+      },
+      {
+        "token": "last",
+        "score": -1.0
+      },
+      {
+        "token": "time",
+        "score": 0.2786
+      },
+      {
+        "token": ".",
+        "score": -0.0759
+      }
+    ]
+  },
+  {
+    "text": "I love being stuck in traffic. Best part of my day.",
+    "token_attributions": [
+      {
+        "token": "I",
+        "score": 0.2222
+      },
+      {
+        "token": "love",
+        "score": -0.8281
+      },
+      {
+        "token": "being",
+        "score": -0.1253
+      },
+      {
+        "token": "stuck",
+        "score": -0.1352
+      },
+      {
+        "token": "in",
+        "score": -0.3382
+      },
+      {
+        "token": "traffic",
+        "score": -0.6199
+      },
+      {
+        "token": ".",
+        "score": -0.2148
+      },
+      {
+        "token": "Best",
+        "score": -0.7195
+      },
+      {
+        "token": "part",
+        "score": -0.5613
+      },
+      {
+        "token": "of",
+        "score": -0.4911
+      },
+      {
+        "token": "my",
+        "score": -0.2126
+      },
+      {
+        "token": "day",
+        "score": -1.0
+      },
+      {
+        "token": ".",
+        "score": 0.0347
+      }
+    ]
+  },
+  {
+    "text": "I'm really looking forward to dinner with you tonight.",
+    "token_attributions": [
+      {
+        "token": "I",
+        "score": -0.012
+      },
+      {
+        "token": "'m",
+        "score": -0.4294
+      },
+      {
+        "token": "really",
+        "score": -0.6282
+      },
+      {
+        "token": "looking",
+        "score": -0.6167
+      },
+      {
+        "token": "forward",
+        "score": -0.5394
+      },
+      {
+        "token": "to",
+        "score": -0.4406
+      },
+      {
+        "token": "dinner",
+        "score": -0.2335
+      },
+      {
+        "token": "with",
+        "score": -1.0
+      },
+      {
+        "token": "you",
+        "score": -0.7516
+      },
+      {
+        "token": "tonight",
+        "score": -0.3666
+      },
+      {
+        "token": ".",
+        "score": -0.0255
+      }
+    ]
+  },
+  {
+    "text": "Sure, I completely trust the guy who just spilled coffee on the server.",
+    "token_attributions": [
+      {
+        "token": "Sure",
+        "score": -0.3174
+      },
+      {
+        "token": ",",
+        "score": -0.4829
+      },
+      {
+        "token": "I",
+        "score": 0.0617
+      },
+      {
+        "token": "completely",
+        "score": -0.6388
+      },
+      {
+        "token": "trust",
+        "score": -0.5524
+      },
+      {
+        "token": "the",
+        "score": -1.0
+      },
+      {
+        "token": "guy",
+        "score": -0.3925
+      },
+      {
+        "token": "who",
+        "score": -0.6384
+      },
+      {
+        "token": "just",
+        "score": -0.7768
+      },
+      {
+        "token": "spilled",
+        "score": -0.0935
+      },
+      {
+        "token": "coffee",
+        "score": -0.3155
+      },
+      {
+        "token": "on",
+        "score": -0.4205
+      },
+      {
+        "token": "the",
+        "score": -0.7523
+      },
+      {
+        "token": "server",
+        "score": -0.7805
+      },
+      {
+        "token": ".",
+        "score": -0.0173
+      }
+    ]
+  }
+]

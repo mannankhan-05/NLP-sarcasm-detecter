@@ -1,0 +1,36 @@
+# Pinned for a CPU-friendly multimodal sarcasm stack.
+# Install PyTorch first from the CPU index (see README), then:
+#   pip install -r requirements.txt
+
+numpy==2.1.3
+pandas==2.2.3
+scikit-learn==1.5.2
+scipy==1.14.1
+joblib==1.4.2
+pyyaml==6.0.2
+tqdm==4.66.5
+matplotlib==3.9.2
+seaborn==0.13.2
+pillow==10.4.0
+
+# Text / sentiment
+transformers==4.44.2
+huggingface_hub==0.25.1
+tokenizers==0.19.1
+safetensors==0.4.5
+vaderSentiment==3.3.2
+regex==2024.9.11
+
+# Audio / video
+librosa==0.10.2.post1
+soundfile==0.12.1
+opencv-python-headless==4.10.0.84
+
+# API
+fastapi==0.115.0
+uvicorn==0.30.6
+python-multipart==0.0.12
+pydantic==2.9.2
+
+# Optional video-folder fetch
+gdown==5.2.0
