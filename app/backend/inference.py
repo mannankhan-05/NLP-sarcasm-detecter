@@ -208,14 +208,27 @@ class SarcasmService:
 
     def predict_multimodal(self, video_path: str, transcript: str | None = None, context: str = "") -> dict:
         t0 = time.perf_counter()
-        from mustard.av_infer import audio_sarcasm_prob, fuse_probs, prepare_wav, resolve_transcript, visual_sarcasm_prob
+        from mustard.av_infer import (
+            audio_sarcasm_prob,
+            fuse_probs,
+            prepare_wav,
+            resolve_transcript,
+            transcribe_speech,
+            visual_sarcasm_prob,
+        )
         from mustard.features import sample_frames
 
         video_path = Path(video_path)
         wav_path = self.paths["audio"] / f"upload_{video_path.stem}.wav"
-        transcript = preserve_text(resolve_transcript(video_path, transcript))
+        transcript, transcript_source = resolve_transcript(video_path, transcript)
+        transcript = preserve_text(transcript)
         context = preserve_text(context)
         prepare_wav(video_path, wav_path, sr=int(self.cfg["audio"]["sample_rate"]))
+        if not transcript:
+            heard = preserve_text(transcribe_speech(wav_path))
+            if heard:
+                transcript = heard
+                transcript_source = "asr"
 
         video_exts = {".mp4", ".mov", ".mkv", ".webm", ".avi"}
         frames = sample_frames(video_path) if video_path.suffix.lower() in video_exts else []
@@ -271,8 +284,10 @@ class SarcasmService:
         notes = []
         if extra_note:
             notes.append(extra_note)
-        if not transcript:
-            notes.append("No transcript in the form, file metadata, or sidecar .txt — text channel masked.")
+        if transcript_source == "asr":
+            notes.append("Transcript was generated from the recording. Edit it in the box and re-upload if a word is wrong.")
+        elif not transcript:
+            notes.append("No speech could be transcribed and no transcript was pasted, so the text channel is masked.")
         notes.append(
             "MUStARD++ videos were not downloaded, so the gated AV heads stay untrained. "
             "This clip is scored with the utterance text model plus heuristic audio (prosody) "
@@ -289,6 +304,7 @@ class SarcasmService:
             "modality_contributions": contrib,
             "gates": {"text": float(gates[0]), "audio": float(gates[1]), "visual": float(gates[2])},
             "transcript": transcript,
+            "transcript_source": transcript_source,
             "token_attributions": attr,
             "keyframes": keyframes,
             "audio_contour": contour,

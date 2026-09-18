@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import subprocess
 from pathlib import Path
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
+
+_ASR_PIPE = None
+_ASR_FAILED = False
+_VOSK_MODEL = None
 
 
 def read_embedded_transcript(media_path: str | Path) -> str:
@@ -34,17 +42,162 @@ def read_embedded_transcript(media_path: str | Path) -> str:
     return ""
 
 
-def resolve_transcript(media_path: str | Path, provided: str | None = None) -> str:
+def resolve_transcript(media_path: str | Path, provided: str | None = None) -> tuple[str, str]:
+    """Return (transcript, source) where source is pasted | metadata | sidecar | asr | none."""
     text = (provided or "").strip()
     if text:
-        return text
+        return text, "pasted"
     path = Path(media_path)
     embedded = read_embedded_transcript(path)
     if embedded:
-        return embedded
+        return embedded, "metadata"
     for sidecar in (path.with_suffix(".txt"), path.with_name(path.stem + "_transcript.txt")):
         if sidecar.exists():
-            return sidecar.read_text(encoding="utf-8", errors="ignore").strip()
+            raw = sidecar.read_text(encoding="utf-8", errors="ignore").strip()
+            if raw:
+                return raw, "sidecar"
+    return "", "none"
+
+
+def _asr_pipeline():
+    """Lazy CPU Whisper tiny.en if already cached; otherwise skip."""
+    global _ASR_PIPE, _ASR_FAILED
+    if _ASR_PIPE is not None or _ASR_FAILED:
+        return _ASR_PIPE
+    try:
+        from huggingface_hub import snapshot_download
+        from transformers import pipeline
+
+        from mustard.config import get_paths
+
+        cache = str(get_paths()["hf_cache"])
+        os.environ.setdefault("HF_HOME", cache)
+        os.environ.setdefault("TRANSFORMERS_CACHE", cache)
+        local = Path(cache) / "models--openai--whisper-tiny.en" / "snapshots"
+        if not local.exists() or not any(local.glob("*/model.safetensors")):
+            _ASR_FAILED = True
+            return None
+        _ASR_PIPE = pipeline(
+            "automatic-speech-recognition",
+            model="openai/whisper-tiny.en",
+            device="cpu",
+            model_kwargs={"cache_dir": cache, "local_files_only": True},
+        )
+        logger.info("Loaded Whisper tiny.en for clip transcription.")
+    except Exception as exc:  # noqa: BLE001
+        _ASR_FAILED = True
+        logger.warning("Whisper unavailable: %s", exc)
+        _ASR_PIPE = None
+    return _ASR_PIPE
+
+
+def _transcribe_whisper(wav_path: Path) -> str:
+    pipe = _asr_pipeline()
+    if pipe is None:
+        return ""
+    out = pipe(str(wav_path))
+    text = (out.get("text") if isinstance(out, dict) else str(out or "")).strip()
+    return " ".join(text.split())
+
+
+def _transcribe_vosk(wav_path: Path) -> str:
+    global _VOSK_MODEL
+    from mustard.config import PROJECT_ROOT
+
+    model_dir = PROJECT_ROOT / "artifacts" / "asr" / "vosk-model-small-en-us-0.15"
+    if not model_dir.exists():
+        return ""
+    import json as _json
+    import wave
+
+    from vosk import KaldiRecognizer, Model, SetLogLevel
+
+    SetLogLevel(-1)
+    if _VOSK_MODEL is None:
+        _VOSK_MODEL = Model(str(model_dir))
+    wf = wave.open(str(wav_path), "rb")
+    rec = KaldiRecognizer(_VOSK_MODEL, wf.getframerate())
+    rec.SetWords(False)
+    chunks = []
+    while True:
+        data = wf.readframes(4000)
+        if not data:
+            break
+        if rec.AcceptWaveform(data):
+            chunks.append(_json.loads(rec.Result()).get("text", ""))
+    chunks.append(_json.loads(rec.FinalResult()).get("text", ""))
+    return " ".join(t for t in chunks if t).strip()
+
+
+def _transcribe_google(wav_path: Path) -> str:
+    """Short-clip ASR via the public Chromium speech endpoint (same as SpeechRecognition)."""
+    import urllib.parse
+    import urllib.request
+
+    flac = wav_path.with_name(wav_path.stem + ".asr.flac")
+    proc = subprocess.run(
+        ["ffmpeg", "-y", "-i", str(wav_path), "-ac", "1", "-ar", "16000", "-c:a", "flac", str(flac)],
+        capture_output=True,
+    )
+    if proc.returncode != 0 or not flac.exists():
+        return ""
+    try:
+        payload = flac.read_bytes()
+        if len(payload) < 200:
+            return ""
+        qs = urllib.parse.urlencode(
+            {
+                "client": "chromium",
+                "lang": "en-US",
+                "pFilter": "0",
+                # Public Chromium / SpeechRecognition demo key (not a project secret).
+                "key": "AIzaSyBOti4mM-6x9WDnZIjIeyEUHhQ-sD-6g8",
+            }
+        )
+        req = urllib.request.Request(
+            f"https://www.google.com/speech-api/v2/recognize?{qs}",
+            data=payload,
+            headers={"Content-Type": "audio/x-flac; rate=16000"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            body = resp.read().decode("utf-8", "ignore")
+    finally:
+        flac.unlink(missing_ok=True)
+    best = ""
+    for line in body.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        alts = ((payload.get("result") or [{}])[0].get("alternative") or [])
+        if alts:
+            cand = (alts[0].get("transcript") or "").strip()
+            if cand:
+                best = cand
+    return best
+
+
+def transcribe_speech(wav_path: str | Path) -> str:
+    path = Path(wav_path)
+    if not path.exists() or path.stat().st_size < 400:
+        return ""
+    for name, fn in (
+        ("vosk", _transcribe_vosk),
+        ("google", _transcribe_google),
+        ("whisper", _transcribe_whisper),
+    ):
+        try:
+            text = " ".join((fn(path) or "").split())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("%s ASR failed on %s: %s", name, path.name, exc)
+            continue
+        if len(text) >= 2:
+            logger.info("Transcribed %s via %s: %s", path.name, name, text[:80])
+            return text
     return ""
 
 

@@ -25,6 +25,7 @@ regex==2024.9.11
 librosa==0.10.2.post1
 soundfile==0.12.1
 opencv-python-headless==4.10.0.84
+vosk==0.3.44
 
 # API
 fastapi==0.115.0

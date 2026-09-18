@@ -129,7 +129,7 @@ python data/make_demo_videos.py     # writes data/demo/ (needs ffmpeg with flite
 | [`sarcastic_oh_great.wav`](data/demo/sarcastic_oh_great.wav) | 16 kHz PCM | ~7 s | **sarcastic** | same speech, audio-only (visual masked) |
 | [`sincere_dinner.wav`](data/demo/sincere_dinner.wav) | 16 kHz PCM | ~3 s | **non-sarcastic** | same speech, audio-only |
 
-In the UI: **Audio / Video** tab → Download or Test. MP4s carry `comment=transcript: …` so you do not have to paste the line. WAV tests should use the shown transcript (the Test button fills it).
+In the UI: **Audio / Video** tab → Download or Test. MP4s carry `comment=transcript: …` so you do not have to paste the line. Custom WhatsApp/voice notes are **auto-transcribed** (Vosk) and then scored by the same text model — leave the transcript box empty when you upload. WAV tests should use the shown transcript (the Test button fills it).
 
 Supported upload types: `.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.wav`, `.mp3`, `.m4a`.
 

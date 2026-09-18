@@ -83,12 +83,12 @@ export default function App() {
     }
   };
 
-  const analyzeFile = async (file, forcedTranscript = "") => {
+  const analyzeFile = async (file, forcedTranscript = null) => {
     if (!file) return;
     setFileName(file.name);
     setLoading(true);
     setError("");
-    const spoken = (forcedTranscript || transcript).trim();
+    const spoken = (forcedTranscript ?? transcript).trim();
     const form = new FormData();
     form.append("video", file);
     if (spoken) form.append("transcript", spoken);
@@ -97,7 +97,7 @@ export default function App() {
       const data = await api("/predict/multimodal", { method: "POST", body: form });
       setMultiResult(data);
       setHistory((h) => [{ ...data, input: file.name, at: Date.now(), kind: "clip" }, ...h].slice(0, 20));
-      if (data.transcript && !transcript) setTranscript(data.transcript);
+      if (data.transcript) setTranscript(data.transcript);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -253,7 +253,7 @@ export default function App() {
                 onDrop={(e) => {
                   e.preventDefault();
                   const f = e.dataTransfer.files?.[0];
-                  if (f) analyzeFile(f);
+                  if (f) analyzeFile(f, "");
                 }}
                 className="grid place-items-center rounded-2xl border border-dashed border-mustard-500/50 bg-mustard-50/50 px-4 py-10 text-center dark:bg-ink-800"
               >
@@ -266,7 +266,10 @@ export default function App() {
                   className="mt-4 text-sm"
                   type="file"
                   accept="video/*,audio/*"
-                  onChange={(e) => analyzeFile(e.target.files?.[0])}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) analyzeFile(f, "");
+                  }}
                 />
                 {fileName && <p className="mt-2 text-xs">Selected: {fileName}</p>}
               </div>
@@ -278,7 +281,7 @@ export default function App() {
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 rows={3}
-                placeholder="Paste what was said, or use a demo clip (transcript is embedded in the MP4)."
+                placeholder="Leave blank to auto-transcribe your recording, or paste what was said."
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-mustard-50/60 px-4 py-3 outline-none ring-mustard-400 focus:ring-2 dark:border-white/10 dark:bg-ink-800"
               />
               {demos.length > 0 && (
@@ -379,6 +382,14 @@ function ResultsPanel({ result, multimodal }) {
           </div>
         </dl>
         <ModalityChips used={result.modalities_used} multimodal={multimodal} />
+        {multimodal && result.transcript && (
+          <p className="mt-3 text-sm">
+            <span className="text-xs uppercase tracking-wide text-ink-950/50 dark:text-mustard-50/50">
+              {result.transcript_source === "asr" ? "Heard (auto-transcribed)" : "Transcript"}
+            </span>
+            <span className="mt-1 block italic">“{result.transcript}”</span>
+          </p>
+        )}
         {result.note && (
           <p className="mt-3 text-xs text-ink-950/60 dark:text-mustard-50/60">{result.note}</p>
         )}
