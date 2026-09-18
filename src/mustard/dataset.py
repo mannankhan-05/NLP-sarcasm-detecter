@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .config import get_paths, load_config
+from .config import PROJECT_ROOT, get_paths, load_config
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,102 @@ def build_utterance_table(raw: pd.DataFrame | None = None) -> pd.DataFrame:
     merged.loc[broken, "video_key"] = merged.loc[broken, "SCENE"].astype(str) + "_u"
     merged = merged.reset_index(drop=True)
     merged["row_id"] = merged.index
+    merged["source"] = "mustard++"
+    merged = _assign_stratified_splits(merged)
+    extra = load_news_headlines()
+    if extra is not None and len(extra):
+        merged = pd.concat([merged, extra], ignore_index=True, sort=False)
+        merged["row_id"] = np.arange(len(merged))
+        logger.info(
+            "Extended corpus: %d MUStARD++ + %d news headlines = %d rows.",
+            int((merged["source"] == "mustard++").sum()),
+            int((merged["source"] == "news_headlines").sum()),
+            len(merged),
+        )
     return merged
+
+
+def _assign_stratified_splits(df: pd.DataFrame, seed: int = 42) -> pd.DataFrame:
+    """70/15/15 on MUStARD++ so sitcom rows appear in every split."""
+    from sklearn.model_selection import train_test_split
+
+    df = df.copy()
+    idx = np.arange(len(df))
+    y = df["sarcasm"].to_numpy()
+    tr, rest = train_test_split(idx, test_size=0.30, stratify=y, random_state=seed)
+    va, te = train_test_split(rest, test_size=0.50, stratify=y[rest], random_state=seed)
+    split = np.array(["train"] * len(df), dtype=object)
+    split[va] = "val"
+    split[te] = "test"
+    df["split"] = split
+    return df
+
+
+def _news_csv_map() -> dict[str, Path]:
+    local = PROJECT_ROOT / "data" / "raw" / "news_headlines"
+    downloads = Path.home() / "Downloads"
+    local.mkdir(parents=True, exist_ok=True)
+    mapping = {
+        "train": (local / "train.csv", downloads / "train (1).csv"),
+        "val": (local / "val.csv", downloads / "val (1).csv"),
+        "test": (local / "test.csv", downloads / "test.csv"),
+    }
+    found: dict[str, Path] = {}
+    for split, (dst, src) in mapping.items():
+        if dst.exists():
+            found[split] = dst
+            continue
+        if src.exists():
+            dst.write_bytes(src.read_bytes())
+            logger.info("Copied %s → %s", src, dst)
+            found[split] = dst
+    return found
+
+
+def load_news_headlines() -> pd.DataFrame | None:
+    """News-headline sarcasm CSVs (Kaggle-style headline / is_sarcastic)."""
+    files = _news_csv_map()
+    if len(files) < 3:
+        if files:
+            logger.warning("News headline files incomplete (%s); skipping extra corpus.", sorted(files))
+        return None
+    frames = []
+    for split in ("train", "val", "test"):
+        raw = pd.read_csv(files[split])
+        raw.columns = [c.strip() for c in raw.columns]
+        if "headline" not in raw.columns or "is_sarcastic" not in raw.columns:
+            raise ValueError(f"{files[split]} needs columns headline, is_sarcastic")
+        part = pd.DataFrame(
+            {
+                "utterance": raw["headline"].fillna("").astype(str).str.replace(r"\s+", " ", regex=True).str.strip(),
+                "sarcasm": pd.to_numeric(raw["is_sarcastic"], errors="coerce"),
+                "split": split,
+            }
+        )
+        part = part.loc[part["utterance"].str.len() > 0].dropna(subset=["sarcasm"])
+        part["sarcasm"] = part["sarcasm"].astype(int).clip(0, 1)
+        part["source"] = "news_headlines"
+        part["KEY"] = [f"NEWS_{split}_{i}" for i in range(len(part))]
+        part["SCENE"] = part["KEY"]
+        part["SENTENCE"] = part["utterance"]
+        part["SPEAKER"] = "NEWS"
+        part["SHOW"] = "NEWSHEADLINES"
+        part["context"] = ""
+        part["n_context"] = 0
+        part["sarcasm_type"] = "HEADLINE"
+        part["implicit_emotion"] = "Unknown"
+        part["explicit_emotion"] = "Unknown"
+        part["valence"] = np.nan
+        part["arousal"] = np.nan
+        part["utterance_id"] = part["KEY"]
+        part["video_key"] = part["KEY"]
+        frames.append(part)
+    extra = pd.concat(frames, ignore_index=True)
+    logger.info(
+        "News headlines: %s",
+        extra.groupby("split")["sarcasm"].agg(["size", "sum"]).to_dict(),
+    )
+    return extra
 
 
 def _parse_timestamp(value: object) -> float:
@@ -157,8 +252,8 @@ def verify_dataset(df: pd.DataFrame) -> dict:
         "n_sarcastic": n_sarc,
         "n_non_sarcastic": n_ns,
         "balanced": n_sarc == n_ns,
-        "expected_n": cfg["dataset"]["n_expected"],
-        "n_matches_paper": n == cfg["dataset"]["n_expected"],
+        "n_mustard": int((df["source"] == "mustard++").sum()) if "source" in df.columns else n,
+        "n_news_headlines": int((df["source"] == "news_headlines").sum()) if "source" in df.columns else 0,
         "n_shows": int(df["SHOW"].nunique()),
         "n_speakers": int(df["SPEAKER"].nunique()),
         "n_with_video": int(df["has_video"].sum()) if "has_video" in df.columns else 0,

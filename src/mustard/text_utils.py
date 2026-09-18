@@ -107,9 +107,6 @@ def isolated_text_kind(text: str) -> str:
         return "force_ns"
     if _SIMPLE_COMPLIMENT_RE.search(text) or _SIMPLE_EVAL_RE.search(text) or _FACTUAL_RE.search(text):
         return "force_ns"
-    if n < 10:
-        # Short unmarked statements default to literal.
-        return "force_ns"
     return "allow"
 
 

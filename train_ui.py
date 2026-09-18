@@ -31,14 +31,20 @@ def main() -> None:
     paths = get_paths()
     pack = load_feature_pack()
     df = build_utterance_table(load_raw_csv())
+    if len(pack["y"]) != len(df):
+        raise SystemExit("Feature cache is stale. Run `python features.py --force`.")
     y = pack["y"]
     hands = np.stack([handcrafted_text_features(u, "") for u in df["utterance"]], axis=0)
     x = np.concatenate([pack["text_utt"], hands], axis=1).astype(np.float32)
-    stats = fit_standardizer(x)
+    if "split" in df.columns:
+        fit_mask = df["split"].astype(str).isin(["train", "val"]).to_numpy()
+    else:
+        fit_mask = np.ones(len(df), dtype=bool)
+    stats = fit_standardizer(x[fit_mask])
     xs = (x - stats["mean"]) / stats["std"]
 
     emb = LogisticRegression(max_iter=2500, C=0.4, class_weight="balanced", solver="liblinear")
-    emb.fit(xs, y)
+    emb.fit(xs[fit_mask], y[fit_mask])
 
     tfidf = Pipeline(
         [
@@ -58,7 +64,7 @@ def main() -> None:
             ),
         ]
     )
-    tfidf.fit(df["utterance"].tolist(), y)
+    tfidf.fit(df.loc[fit_mask, "utterance"].tolist(), y[fit_mask])
 
     out = paths["checkpoints"] / "text_ui"
     out.mkdir(parents=True, exist_ok=True)
@@ -71,7 +77,7 @@ def main() -> None:
             "hand_dim": int(hands.shape[1]),
             "blend_emb": 0.6,
             "blend_tfidf": 0.4,
-            "trained_on": "utterance_only",
+            "trained_on": "utterance_only_train_val",
         },
         out / "serve.joblib",
     )

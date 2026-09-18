@@ -1,29 +1,31 @@
 {
-  "n_utterances": 1202,
-  "n_sarcastic": 601,
-  "n_non_sarcastic": 601,
-  "balanced": true,
-  "expected_n": 1202,
-  "n_matches_paper": true,
-  "n_shows": 5,
-  "n_speakers": 27,
+  "n_utterances": 29705,
+  "n_sarcastic": 14153,
+  "n_non_sarcastic": 15552,
+  "balanced": false,
+  "n_mustard": 1202,
+  "n_news_headlines": 28503,
+  "n_shows": 6,
+  "n_speakers": 28,
   "n_with_video": 0,
   "n_with_audio": 0,
   "shows": {
+    "NEWSHEADLINES": 28503,
     "BBT": 716,
     "FRIENDS": 354,
     "SV": 78,
     "GOLDENGIRLS": 40,
     "SARCASMOHOLICS": 14
   },
-  "mean_utt_tokens": 11.319467554076539,
-  "mean_ctx_tokens": 31.76622296173045,
+  "mean_utt_tokens": 10.111799360377042,
+  "mean_ctx_tokens": 1.2854064972226897,
   "sarcasm_types": {
+    "HEADLINE": 28503,
     "NONE": 601,
     "PRO": 333,
     "ILL": 178,
     "EMB": 87,
     "LIK": 3
   },
-  "missing_video": 1202
+  "missing_video": 29705
 }

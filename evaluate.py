@@ -35,7 +35,7 @@ def main() -> None:
     from mustard.features import apply_standardizer, cache_all_features
     from mustard.io_utils import load_json, save_json
     from mustard.plots import plot_ablation, plot_confusion_matrix, plot_reliability
-    from mustard.splits import stratified_cv_folds
+    from mustard.splits import official_or_cv_folds
     from mustard.train_loop import apply_temperature, expected_calibration_error, metrics_from_probs, predict_logits
     from models.unimodal import GatedAttentionFusion
 
@@ -62,7 +62,7 @@ def main() -> None:
     ablation = {}
     error_rows = []
     fusion_dir = paths["checkpoints"] / "fusion_attn"
-    folds = stratified_cv_folds(df, seed=int(cfg["seed"]))
+    folds = official_or_cv_folds(df, seed=int(cfg["seed"]))
     if fusion_dir.exists():
         logger.info("Computing modality ablation from fusion_attn fold checkpoints")
         ablate_fold_metrics = {k: [] for k in ABLATION_MASKS}

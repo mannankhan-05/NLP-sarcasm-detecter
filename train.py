@@ -50,7 +50,7 @@ def main() -> None:
     from mustard.io_utils import save_json
     from mustard.plots import plot_confusion_matrix
     from mustard.seed import seed_everything
-    from mustard.splits import speaker_independent_split, stratified_cv_folds
+    from mustard.splits import official_or_cv_folds, speaker_independent_split
     from mustard.train_loop import (
         apply_temperature,
         expected_calibration_error,
@@ -84,7 +84,12 @@ def main() -> None:
     }
     logger.info("Trained modalities: %s", trained_modalities)
 
-    folds = stratified_cv_folds(df, n_folds=args.folds or cfg["train"]["n_folds"], seed=seed)
+    folds = official_or_cv_folds(df, n_folds=args.folds or cfg["train"]["n_folds"], seed=seed)
+    logger.info(
+        "Using %d split(s); train/val/test sizes %s",
+        len(folds),
+        [(len(f.train_idx), len(f.val_idx), len(f.test_idx)) for f in folds],
+    )
     si = speaker_independent_split(df, seed=seed)
 
     all_results: dict = {"seed": seed, "trained_modalities": trained_modalities, "models": {}}
@@ -100,6 +105,7 @@ def main() -> None:
         hp = cfg["train"]
         deep_specs = _deep_specs(text_x, audio_x, visual_x, speaker_x, mask, trained_modalities, cfg)
 
+        last_bundle = None
         for spec in deep_specs:
             logger.info("=== %s ===", spec["name"])
             fold_metrics = []
@@ -122,8 +128,11 @@ def main() -> None:
                     ckpt_dir / f"fold{split.fold}.pt",
                 )
             summary = _summarize(fold_metrics)
-            si_bundle = _train_one_deep(spec, si, text_x, audio_x, visual_x, speaker_x, mask, y, hp, device, seed)
-            summary["speaker_independent"] = si_bundle["test_metrics"]
+            if len(folds) == 1:
+                summary["speaker_independent"] = {"note": "skipped when official train/val/test splits are used"}
+            else:
+                si_bundle = _train_one_deep(spec, si, text_x, audio_x, visual_x, speaker_x, mask, y, hp, device, seed)
+                summary["speaker_independent"] = si_bundle["test_metrics"]
             all_results["models"][spec["name"]] = summary
             # persist the last fold as the serving checkpoint (plus mean-fold metrics)
             if last_bundle:
@@ -134,26 +143,33 @@ def main() -> None:
                 torch.save(serve, out / "serve.pt")
             logger.info("%s CV macro-F1 %.3f ± %.3f", spec["name"], summary["macro_f1_mean"], summary["macro_f1_std"])
 
-        # Retrain main fusion on all non-test data from fold 0's train+val+test? No.
-        # Serve checkpoint is fold 0's best — instead retrain fusion on 85% of ALL data with a val split.
-        from mustard.splits import FoldSplit
-        from sklearn.model_selection import train_test_split
-
-        idx = np.arange(len(y))
-        tr, va = train_test_split(idx, test_size=0.15, stratify=y, random_state=seed)
-        serve_split = FoldSplit(fold=99, train_idx=tr, val_idx=va, test_idx=va)
-        fusion_spec = next(s for s in deep_specs if s["name"] == "fusion_attn")
-        serve_bundle = _train_one_deep(
-            fusion_spec, serve_split, text_x, audio_x, visual_x, speaker_x, mask, y, hp, device, seed
-        )
-        serve_ckpt = serve_bundle["ckpt"]
-        serve_ckpt["metrics"] = all_results["models"].get("fusion_attn", {})
-        serve_ckpt["trained_modalities"] = trained_modalities
-        serve_ckpt["speaker_names"] = pack["meta"].get("speaker_names", [])
         fusion_dir = paths["checkpoints"] / "fusion_attn"
         fusion_dir.mkdir(parents=True, exist_ok=True)
-        torch.save(serve_ckpt, fusion_dir / "serve.pt")
-        logger.info("Wrote serving checkpoint (val macro-F1=%.3f)", serve_bundle["ckpt"]["val_macro_f1"])
+        official = len(folds) == 1
+        if official and last_bundle:
+            serve_ckpt = copy.deepcopy(last_bundle["ckpt"])
+            serve_ckpt["metrics"] = all_results["models"].get("fusion_attn", {})
+            serve_ckpt["trained_modalities"] = trained_modalities
+            serve_ckpt["speaker_names"] = pack["meta"].get("speaker_names", [])
+            torch.save(serve_ckpt, fusion_dir / "serve.pt")
+            logger.info("Wrote serving checkpoint from official split (val macro-F1=%.3f)", last_bundle["ckpt"]["val_macro_f1"])
+        else:
+            from mustard.splits import FoldSplit
+            from sklearn.model_selection import train_test_split
+
+            idx = np.arange(len(y))
+            tr, va = train_test_split(idx, test_size=0.15, stratify=y, random_state=seed)
+            serve_split = FoldSplit(fold=99, train_idx=tr, val_idx=va, test_idx=va)
+            fusion_spec = next(s for s in deep_specs if s["name"] == "fusion_attn")
+            serve_bundle = _train_one_deep(
+                fusion_spec, serve_split, text_x, audio_x, visual_x, speaker_x, mask, y, hp, device, seed
+            )
+            serve_ckpt = serve_bundle["ckpt"]
+            serve_ckpt["metrics"] = all_results["models"].get("fusion_attn", {})
+            serve_ckpt["trained_modalities"] = trained_modalities
+            serve_ckpt["speaker_names"] = pack["meta"].get("speaker_names", [])
+            torch.save(serve_ckpt, fusion_dir / "serve.pt")
+            logger.info("Wrote serving checkpoint (val macro-F1=%.3f)", serve_bundle["ckpt"]["val_macro_f1"])
 
     save_json(all_results, paths["metrics"] / "cv_results.json")
     logger.info("Wrote %s", paths["metrics"] / "cv_results.json")
@@ -322,16 +338,20 @@ def _run_classical(name, factory, texts, y, folds, si, paths, predict_proba_safe
             paths["figures"] / name / f"cm_fold{split.fold}.png",
         )
         joblib.dump(model, ckpt_dir / f"fold{split.fold}.joblib")
-    # serve: fit on all but a small val is not needed; fit on 100% for demo serving of classical
+    # serve: fit on train+val only (never the test split)
     serve = factory()
-    serve.fit(texts, y)
+    keep = np.concatenate([folds[0].train_idx, folds[0].val_idx])
+    serve.fit([texts[i] for i in keep], y[keep])
     joblib.dump(serve, ckpt_dir / "serve.joblib")
 
+    summary = _summarize(fold_metrics)
+    if len(folds) == 1:
+        summary["speaker_independent"] = {"note": "skipped when official train/val/test splits are used"}
+        return summary
     si_model = factory()
     si_model.fit([texts[i] for i in np.concatenate([si.train_idx, si.val_idx])], y[np.concatenate([si.train_idx, si.val_idx])])
     si_probs = predict_proba_safe(si_model, [texts[i] for i in si.test_idx])
     si_metrics = metrics_from_probs(y[si.test_idx], si_probs)
-    summary = _summarize(fold_metrics)
     summary["speaker_independent"] = si_metrics
     return summary
 

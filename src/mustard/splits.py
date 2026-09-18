@@ -52,6 +52,27 @@ def stratified_cv_folds(
     return folds
 
 
+def official_or_cv_folds(
+    df: pd.DataFrame,
+    n_folds: int | None = None,
+    seed: int = DEFAULT_SEED,
+    val_size: float = 0.15,
+) -> list[FoldSplit]:
+    """Use provided train/val/test labels when present; otherwise 5-fold CV."""
+    if "split" in df.columns:
+        labels = set(df["split"].astype(str).str.lower())
+        if {"train", "val", "test"} <= labels:
+            split = df["split"].astype(str).str.lower()
+            train_idx = np.where(split == "train")[0]
+            val_idx = np.where(split == "val")[0]
+            test_idx = np.where(split == "test")[0]
+            if min(len(train_idx), len(val_idx), len(test_idx)) > 0:
+                return [
+                    FoldSplit(fold=0, train_idx=train_idx, val_idx=val_idx, test_idx=test_idx)
+                ]
+    return stratified_cv_folds(df, n_folds=n_folds, seed=seed, val_size=val_size)
+
+
 def speaker_independent_split(
     df: pd.DataFrame,
     holdout_show: str | None = None,

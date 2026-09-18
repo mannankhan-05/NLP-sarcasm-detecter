@@ -452,14 +452,24 @@ def cache_all_features(df: pd.DataFrame, force: bool = False) -> dict[str, np.nd
         "y": feat_dir / "y.npy",
     }
     if not force and all(p.exists() for p in keys.values()) and meta_path.exists():
-        logger.info("Loading cached features from %s", feat_dir)
-        return {k: np.load(p) for k, p in keys.items()} | {"meta": load_json(meta_path)}
+        cached = {k: np.load(p) for k, p in keys.items()}
+        if int(cached["y"].shape[0]) == len(df):
+            logger.info("Loading cached features from %s", feat_dir)
+            return cached | {"meta": load_json(meta_path)}
+        logger.info("Feature cache size %d != %d rows; re-extracting.", cached["y"].shape[0], len(df))
 
     encoder = FrozenTextEncoder()
     logger.info("Encoding utterance text (%d rows)...", len(df))
-    text_utt = encoder.encode(df["utterance"].tolist())
+    text_utt = encoder.encode(df["utterance"].tolist(), batch_size=32)
     logger.info("Encoding context text...")
-    text_ctx = encoder.encode(df["context"].tolist())
+    ctx = df["context"].fillna("").astype(str).tolist()
+    empty = [i for i, t in enumerate(ctx) if not t.strip()]
+    nonempty = [i for i, t in enumerate(ctx) if t.strip()]
+    text_ctx = np.zeros((len(df), encoder.dim), dtype=np.float32)
+    if empty:
+        text_ctx[empty] = encoder.encode([""], batch_size=1)
+    if nonempty:
+        text_ctx[nonempty] = encoder.encode([ctx[i] for i in nonempty], batch_size=32)
     text_hand = extract_all_handcrafted(df)
     speaker, speaker_names = build_speaker_onehot(df)
 
