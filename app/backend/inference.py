@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mustard.config import PROJECT_ROOT, get_paths, load_config
+from mustard.config import get_paths, load_config
 from mustard.explain import (
     gradient_token_attributions,
     heuristic_token_attributions,
@@ -18,7 +18,6 @@ from mustard.explain import (
 from mustard.features import (
     FrozenTextEncoder,
     apply_standardizer,
-    demux_audio,
     extract_audio_features,
     extract_pitch_energy_contour,
     extract_visual_features,
@@ -209,43 +208,103 @@ class SarcasmService:
 
     def predict_multimodal(self, video_path: str, transcript: str | None = None, context: str = "") -> dict:
         t0 = time.perf_counter()
+        from mustard.av_infer import audio_sarcasm_prob, fuse_probs, prepare_wav, resolve_transcript, visual_sarcasm_prob
+        from mustard.features import sample_frames
+
         video_path = Path(video_path)
         wav_path = self.paths["audio"] / f"upload_{video_path.stem}.wav"
-        demux_audio(video_path, wav_path, sr=self.cfg["audio"]["sample_rate"])
+        transcript = preserve_text(resolve_transcript(video_path, transcript))
+        context = preserve_text(context)
+        prepare_wav(video_path, wav_path, sr=int(self.cfg["audio"]["sample_rate"]))
 
-        transcript = preserve_text(transcript or "")
-        if not self.trained_modalities.get("audio") and not self.trained_modalities.get("visual"):
-            note = (
-                "Audio/visual fusion heads were not trained on MUStARD++ clips "
-                "(raw videos were not present). Place clips in data/videos/ and re-run "
-                "features.py + train.py to enable trimodal inference."
-            )
-            if transcript:
-                base = self.predict_text(transcript, context)
-                base["note"] = note + " Verdict uses the trained text pathway."
-                base["transcript"] = transcript
-                base["keyframes"] = []
-                base["audio_contour"] = {"times": [], "f0": [], "energy": []}
-                base["model"] = "fusion-v1-textmasked"
-                base["inference_ms"] = int((time.perf_counter() - t0) * 1000)
-                return base
-            return {
-                "label": "non_sarcastic",
-                "confidence": 0.5,
-                "probabilities": {"non_sarcastic": 0.5, "sarcastic": 0.5},
-                "modalities_used": [],
-                "token_attributions": [],
-                "modality_contributions": {"text": 0.0, "audio": 0.0, "visual": 0.0},
-                "transcript": "",
-                "keyframes": [],
-                "audio_contour": {"times": [], "f0": [], "energy": []},
-                "model": "fusion-v1-untrained-av",
-                "inference_ms": int((time.perf_counter() - t0) * 1000),
-                "note": note + " Paste a transcript to use the text model on this clip.",
-            }
+        video_exts = {".mp4", ".mov", ".mkv", ".webm", ".avi"}
+        frames = sample_frames(video_path) if video_path.suffix.lower() in video_exts else []
+        av_trained = bool(self.trained_modalities.get("audio") and self.trained_modalities.get("visual") and self.model is not None)
+
+        if av_trained:
+            return self._predict_trained_fusion(video_path, wav_path, frames, transcript, context, t0)
+
+        p_text = None
+        extra_note = ""
+        if transcript:
+            ui, extra_note = self._ui_probs(transcript)
+            if ui is not None:
+                p_text = float(ui[1])
+            elif self.classical is not None:
+                p_text = float(self._classical_probs(transcript)[1])
+
+        p_audio, audio_meta = audio_sarcasm_prob(wav_path)
+        if not audio_meta.get("ok"):
+            p_audio = None
+        p_visual, visual_meta = visual_sarcasm_prob(frames)
+        if not visual_meta.get("ok"):
+            p_visual = None
+
+        p_sarc, contrib = fuse_probs(p_text, p_audio, p_visual)
+        probs = np.array([1.0 - p_sarc, p_sarc], dtype=np.float32)
+        used = []
+        if p_text is not None:
+            used.append("text")
+        if p_audio is not None:
+            used.append("audio")
+        if p_visual is not None:
+            used.append("visual")
+
+        gates = np.array(
+            [
+                float(contrib.get("text", 0.0)),
+                float(contrib.get("audio", 0.0)),
+                float(contrib.get("visual", 0.0)),
+            ],
+            dtype=np.float32,
+        )
+        if not used:
+            probs = np.array([0.5, 0.5], dtype=np.float32)
+            contrib = {"text": 0.0, "audio": 0.0, "visual": 0.0}
+            gates = np.zeros(3, dtype=np.float32)
+
+        label_id = int(probs.argmax())
+        keyframes = save_gradcam_keyframes(frames, video_path.stem)
+        contour = {"times": [], "f0": [], "energy": []}
+        attr = self._attributions(transcript) if transcript else []
+
+        notes = []
+        if extra_note:
+            notes.append(extra_note)
+        if not transcript:
+            notes.append("No transcript in the form, file metadata, or sidecar .txt — text channel masked.")
+        notes.append(
+            "MUStARD++ videos were not downloaded, so the gated AV heads stay untrained. "
+            "This clip is scored with the utterance text model plus heuristic audio (prosody) "
+            "and visual (brightness/motion) cues — not a sitcom-trained trimodal fusion."
+        )
+        if not used:
+            notes.append("No usable text, audio, or video signal was decoded, so the output is an uninformative 50/50.")
+
+        return {
+            "label": LABELS[label_id],
+            "confidence": float(probs[label_id]),
+            "probabilities": {"non_sarcastic": float(probs[0]), "sarcastic": float(probs[1])},
+            "modalities_used": used,
+            "modality_contributions": contrib,
+            "gates": {"text": float(gates[0]), "audio": float(gates[1]), "visual": float(gates[2])},
+            "transcript": transcript,
+            "token_attributions": attr,
+            "keyframes": keyframes,
+            "audio_contour": contour,
+            "heuristic_cues": {
+                "audio": audio_meta,
+                "visual": visual_meta,
+                "disclaimer": "Exploratory AV descriptors fused with the text model; not MUStARD++-trained AV heads.",
+            },
+            "model": "clip-heuristic-av+text",
+            "inference_ms": int((time.perf_counter() - t0) * 1000),
+            "note": " ".join(notes),
+        }
+
+    def _predict_trained_fusion(self, video_path, wav_path, frames, transcript, context, t0) -> dict:
         used = []
         mask = np.zeros(3, dtype=np.float32)
-
         if transcript:
             mask[0] = 1.0
             used.append("text")
@@ -256,20 +315,16 @@ class SarcasmService:
                 tv = apply_standardizer(tv.reshape(1, -1), self.ckpt["text_stats"])[0]
 
         audio = extract_audio_features(wav_path)
-        visual_b, visual_h, frames = extract_visual_features(video_path)
+        visual_b, visual_h, vis_frames = extract_visual_features(video_path)
+        frames = vis_frames or frames
         visual = np.concatenate([visual_b, visual_h]).astype(np.float32)
 
-        audio_ok = bool(np.abs(audio).sum() > 0) and self.trained_modalities.get("audio", False)
-        visual_ok = bool(np.abs(visual).sum() > 0) and self.trained_modalities.get("visual", False)
-        # If AV heads were not trained, keep them masked so random projections cannot hijack the verdict.
         if np.abs(audio).sum() > 0:
-            if audio_ok:
-                mask[1] = 1.0
-                used.append("audio")
+            mask[1] = 1.0
+            used.append("audio")
         if np.abs(visual).sum() > 0:
-            if visual_ok:
-                mask[2] = 1.0
-                used.append("visual")
+            mask[2] = 1.0
+            used.append("visual")
 
         if self.ckpt is not None:
             audio_n = apply_standardizer(audio.reshape(1, -1), self.ckpt["audio_stats"])[0]
@@ -277,61 +332,33 @@ class SarcasmService:
         else:
             audio_n, visual_n = audio, visual
 
-        if self.model is not None and (mask.sum() > 0):
-            probs, gates = self._predict_fusion(tv, audio_n, visual_n, mask)
+        probs, gates = self._predict_fusion(tv, audio_n, visual_n, mask)
 
-            def _pfn(t, a, v, m):
-                p, _ = self._predict_fusion(t, a, v, m)
-                return p[1]
+        def _pfn(t, a, v, m):
+            p, _ = self._predict_fusion(t, a, v, m)
+            return p[1]
 
-            contrib = leave_one_modality_contributions(
-                _pfn,
-                {"text": tv, "audio": audio_n, "visual": visual_n},
-                mask,
-            )
-            model_name = "fusion-v1"
-        else:
-            probs = self._classical_probs(transcript) if transcript else np.array([0.5, 0.5])
-            gates = np.array([1.0 if "text" in used else 0.0, 0.0, 0.0])
-            contrib = {"text": 1.0 if transcript else 0.0, "audio": 0.0, "visual": 0.0}
-            model_name = "tfidf-lr-fallback"
-
-        if not used:
-            used = ["text"] if transcript else []
-            model_name = model_name + "-empty"
-
+        contrib = leave_one_modality_contributions(
+            _pfn,
+            {"text": tv, "audio": audio_n, "visual": visual_n},
+            mask,
+        )
         label_id = int(probs.argmax())
-        keyframes = save_gradcam_keyframes(frames, video_path.stem)
-        contour = extract_pitch_energy_contour(wav_path)
-        attr = self._attributions(transcript) if transcript else []
-
-        notes = []
-        if "text" not in used:
-            notes.append("No transcript supplied — text channel masked.")
-        if not self.trained_modalities.get("audio") or not self.trained_modalities.get("visual"):
-            notes.append(
-                "Audio/visual fusion heads were not trained on MUStARD++ clips "
-                "(raw videos were not present). Verdict uses the trained text pathway; "
-                "prosody and keyframes are shown as exploratory cues."
-            )
-        if "audio" in used or "visual" in used:
-            notes.append("Full multimodal path active.")
-
         return {
             "label": LABELS[label_id],
             "confidence": float(probs[label_id]),
             "probabilities": {"non_sarcastic": float(probs[0]), "sarcastic": float(probs[1])},
-            "modalities_used": used or ["text"],
+            "modalities_used": used or (["text"] if transcript else []),
             "modality_contributions": contrib,
             "gates": {"text": float(gates[0]), "audio": float(gates[1]), "visual": float(gates[2])},
             "transcript": transcript,
-            "token_attributions": attr,
-            "keyframes": keyframes,
-            "audio_contour": contour,
+            "token_attributions": self._attributions(transcript) if transcript else [],
+            "keyframes": save_gradcam_keyframes(frames, video_path.stem),
+            "audio_contour": extract_pitch_energy_contour(wav_path),
             "heuristic_cues": _heuristic_av_cues(audio, visual_h, transcript),
-            "model": model_name,
+            "model": "fusion-v1",
             "inference_ms": int((time.perf_counter() - t0) * 1000),
-            "note": " ".join(notes),
+            "note": "Full multimodal path active (trained audio/visual heads).",
         }
 
     def _attributions(self, text: str) -> list[dict]:

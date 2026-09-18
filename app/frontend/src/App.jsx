@@ -46,6 +46,7 @@ export default function App() {
   });
   const [fileName, setFileName] = useState("");
   const [transcript, setTranscript] = useState("");
+  const [demos, setDemos] = useState([]);
   const dropRef = useRef(null);
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export default function App() {
 
   useEffect(() => {
     api("/examples").then((d) => setExamples(d.items || [])).catch(() => {});
+    api("/examples/demo").then((d) => setDemos(d.items || [])).catch(() => {});
     api("/model/metrics").then(setMetrics).catch(() => {});
   }, []);
 
@@ -81,14 +83,15 @@ export default function App() {
     }
   };
 
-  const analyzeFile = async (file) => {
+  const analyzeFile = async (file, forcedTranscript = "") => {
     if (!file) return;
     setFileName(file.name);
     setLoading(true);
     setError("");
+    const spoken = (forcedTranscript || transcript).trim();
     const form = new FormData();
     form.append("video", file);
-    if (transcript.trim()) form.append("transcript", transcript.trim());
+    if (spoken) form.append("transcript", spoken);
     if (context.trim()) form.append("context", context.trim());
     try {
       const data = await api("/predict/multimodal", { method: "POST", body: form });
@@ -98,6 +101,23 @@ export default function App() {
     } catch (err) {
       setError(err.message);
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const testDemo = async (demo) => {
+    setTab("upload");
+    if (demo.transcript) setTranscript(demo.transcript);
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(demo.url);
+      if (!res.ok) throw new Error(`Could not download ${demo.file}`);
+      const blob = await res.blob();
+      const file = new File([blob], demo.file, { type: blob.type || (demo.kind === "audio" ? "audio/wav" : "video/mp4") });
+      await analyzeFile(file, demo.transcript || "");
+    } catch (err) {
+      setError(err.message);
       setLoading(false);
     }
   };
@@ -258,9 +278,50 @@ export default function App() {
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 rows={3}
-                placeholder="Paste what was said. Without this, the text channel is masked."
+                placeholder="Paste what was said, or use a demo clip (transcript is embedded in the MP4)."
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-mustard-50/60 px-4 py-3 outline-none ring-mustard-400 focus:ring-2 dark:border-white/10 dark:bg-ink-800"
               />
+              {demos.length > 0 && (
+                <div className="mt-5 space-y-3">
+                  <h2 className="text-sm font-medium">Labeled demo clips</h2>
+                  <p className="text-xs text-ink-950/60 dark:text-mustard-50/60">
+                    Supported: MP4 (H.264+AAC) and WAV 16 kHz. The 50/50 result on silent/unlabeled clips is gone — these files have speech plus an embedded transcript.
+                  </p>
+                  <ul className="space-y-2">
+                    {demos.map((demo) => (
+                      <li
+                        key={demo.id || demo.file}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-black/10 px-3 py-2 dark:border-white/10"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{demo.file}</p>
+                          <p className="text-[11px] text-ink-950/60 dark:text-mustard-50/60">
+                            {demo.format} · {demo.seconds}s · expected{" "}
+                            <span className="font-semibold uppercase">{String(demo.expected).replace("_", "-")}</span>
+                          </p>
+                          <p className="mt-0.5 line-clamp-2 text-[11px] italic opacity-70">“{demo.transcript}”</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <a
+                            href={demo.url}
+                            download={demo.file}
+                            className="rounded-full border border-black/10 px-3 py-1 text-xs dark:border-white/10"
+                          >
+                            Download
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => testDemo(demo)}
+                            className="rounded-full bg-mustard-400 px-3 py-1 text-xs font-medium text-ink-950"
+                          >
+                            Test
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 

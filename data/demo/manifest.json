@@ -1,0 +1,50 @@
+[
+  {
+    "id": "sarcastic_oh_great",
+    "kind": "video",
+    "file": "sarcastic_oh_great.mp4",
+    "url": "/static/demo/sarcastic_oh_great.mp4",
+    "label": "sarcastic",
+    "seconds": 7,
+    "transcript": "Oh great, another meeting that could have been an email.",
+    "format": "MP4 \u00b7 H.264 + AAC 16 kHz",
+    "expected": "sarcastic",
+    "how": "Audio/Video tab \u2192 drop the MP4. Transcript is embedded in metadata (no paste required)."
+  },
+  {
+    "id": "sarcastic_oh_great_wav",
+    "kind": "audio",
+    "file": "sarcastic_oh_great.wav",
+    "url": "/static/demo/sarcastic_oh_great.wav",
+    "label": "sarcastic",
+    "seconds": 7,
+    "transcript": "Oh great, another meeting that could have been an email.",
+    "format": "WAV \u00b7 16 kHz PCM mono",
+    "expected": "sarcastic",
+    "how": "Audio/Video tab \u2192 drop the WAV. Visual is masked; the Test button fills the transcript."
+  },
+  {
+    "id": "sincere_dinner",
+    "kind": "video",
+    "file": "sincere_dinner.mp4",
+    "url": "/static/demo/sincere_dinner.mp4",
+    "label": "non_sarcastic",
+    "seconds": 3,
+    "transcript": "I'm really looking forward to dinner with you tonight.",
+    "format": "MP4 \u00b7 H.264 + AAC 16 kHz",
+    "expected": "non_sarcastic",
+    "how": "Audio/Video tab \u2192 drop the MP4. Transcript is embedded in metadata (no paste required)."
+  },
+  {
+    "id": "sincere_dinner_wav",
+    "kind": "audio",
+    "file": "sincere_dinner.wav",
+    "url": "/static/demo/sincere_dinner.wav",
+    "label": "non_sarcastic",
+    "seconds": 3,
+    "transcript": "I'm really looking forward to dinner with you tonight.",
+    "format": "WAV \u00b7 16 kHz PCM mono",
+    "expected": "non_sarcastic",
+    "how": "Audio/Video tab \u2192 drop the WAV. Visual is masked; the Test button fills the transcript."
+  }
+]

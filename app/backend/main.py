@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import uuid
@@ -36,6 +37,10 @@ paths = get_paths()
 keyframes_dir = paths["keyframes"]
 keyframes_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static/keyframes", StaticFiles(directory=str(keyframes_dir)), name="keyframes")
+
+DEMO_DIR = ROOT / "data" / "demo"
+DEMO_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static/demo", StaticFiles(directory=str(DEMO_DIR)), name="demo")
 
 FRONTEND_DIST = ROOT / "app" / "frontend" / "dist"
 FRONTEND_PUBLIC = ROOT / "app" / "frontend" / "public"
@@ -100,6 +105,14 @@ def model_metrics():
         "ece": None,
         "note": "Train the models first (`python train.py && python evaluate.py`).",
     }
+
+
+@app.get("/examples/demo")
+def demo_clips():
+    manifest = DEMO_DIR / "manifest.json"
+    if manifest.exists():
+        return {"items": json.loads(manifest.read_text(encoding="utf-8"))}
+    return {"items": []}
 
 
 @app.get("/examples")

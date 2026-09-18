@@ -110,6 +110,29 @@ Open http://127.0.0.1:8000 (after `npm run build`) or http://127.0.0.1:5173 duri
 
 `GET /examples` — one-click demo utterances.
 
+`GET /examples/demo` — downloadable MP4 / WAV test clips with expected labels.
+
+### Demo clips (audio / video)
+
+Unlabeled or silent uploads used to return **50/50** because MUStARD++ videos were not downloaded, so the trained AV heads stay masked and there was no transcript. That is now a real clip path: demux audio, score prosody + motion, and read an embedded transcript.
+
+Generate (or regenerate) the bundled files:
+
+```bash
+python data/make_demo_videos.py     # writes data/demo/ (needs ffmpeg with flite)
+```
+
+| File | Format | Duration | Expected | Why |
+|---|---|---|---|---|
+| [`sarcastic_oh_great.mp4`](data/demo/sarcastic_oh_great.mp4) | H.264 + AAC | 7 s | **sarcastic** | “Oh great, another meeting…” + slow/low TTS + dark static frame |
+| [`sincere_dinner.mp4`](data/demo/sincere_dinner.mp4) | H.264 + AAC | 3 s | **non-sarcastic** | sincere dinner line + faster TTS + brighter zoom |
+| [`sarcastic_oh_great.wav`](data/demo/sarcastic_oh_great.wav) | 16 kHz PCM | ~7 s | **sarcastic** | same speech, audio-only (visual masked) |
+| [`sincere_dinner.wav`](data/demo/sincere_dinner.wav) | 16 kHz PCM | ~3 s | **non-sarcastic** | same speech, audio-only |
+
+In the UI: **Audio / Video** tab → Download or Test. MP4s carry `comment=transcript: …` so you do not have to paste the line. WAV tests should use the shown transcript (the Test button fills it).
+
+Supported upload types: `.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.wav`, `.mp3`, `.m4a`.
+
 ---
 
 ## Modeling (frozen backbones)
