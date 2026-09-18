@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
 from pathlib import Path
 
@@ -26,24 +25,11 @@ from mustard.features import (
     handcrafted_text_features,
 )
 from mustard.io_utils import load_json
-from mustard.text_utils import preserve_text
+from mustard.text_utils import apply_isolated_prior, preserve_text
 
 logger = logging.getLogger(__name__)
 
 LABELS = {0: "non_sarcastic", 1: "sarcastic"}
-
-# Surface irony / sincerity cues for isolated UI text (no dialogue context).
-_IRONY = re.compile(
-    r"(could have been|worked out so well|so well last time|best part of my (day|week|life)|"
-    r"love being stuck|completely trust|totally trust|oh,? sure|yeah,? right|"
-    r"another meeting|why don't we get|do you hear yourself)",
-    re.I,
-)
-_SINCERE = re.compile(
-    r"(looking forward|can't wait|congratulat|thank you|thanks so much|"
-    r"i agree with|did (he|she|they|you) send)",
-    re.I,
-)
 
 
 class SarcasmService:
@@ -114,9 +100,9 @@ class SarcasmService:
         except Exception:
             self.speaker_prior = None
 
-    def _ui_probs(self, text: str) -> np.ndarray | None:
+    def _ui_probs(self, text: str) -> tuple[np.ndarray, str] | tuple[None, str]:
         if not self.ui_bundle:
-            return None
+            return None, ""
         utt = self.encoder.encode([preserve_text(text)])[0]
         hand = handcrafted_text_features(text, "")
         vec = np.concatenate([utt, hand]).astype(np.float32).reshape(1, -1)
@@ -126,8 +112,8 @@ class SarcasmService:
         w_e = float(self.ui_bundle.get("blend_emb", 0.6))
         w_t = float(self.ui_bundle.get("blend_tfidf", 0.4))
         p_sarc = w_e * float(p_emb[1]) + w_t * float(p_tfidf[1])
-        p_sarc = _adjust_isolated(p_sarc, text)
-        return np.array([1.0 - p_sarc, p_sarc], dtype=np.float32)
+        p_sarc, extra = apply_isolated_prior(p_sarc, text)
+        return np.array([1.0 - p_sarc, p_sarc], dtype=np.float32), extra
 
     def _text_vector(self, utterance: str, context: str = "") -> np.ndarray:
         utt = self.encoder.encode([preserve_text(utterance)])[0]
@@ -181,7 +167,8 @@ class SarcasmService:
         t0 = time.perf_counter()
         text = preserve_text(text)
         context = preserve_text(context)
-        ui = self._ui_probs(text)
+        extra_note = ""
+        ui, extra_note = self._ui_probs(text)
         if ui is not None:
             probs = ui
             gates = np.array([1.0, 0.0, 0.0])
@@ -203,7 +190,9 @@ class SarcasmService:
         label_id = int(probs.argmax())
         attr = self._attributions(text)
         note = "Text only — upload a clip for full multimodal analysis."
-        if not context:
+        if extra_note:
+            note = extra_note + " " + note
+        elif not context:
             note += " Adding the previous dialogue turn usually improves isolated lines."
         return {
             "label": LABELS[label_id],
@@ -359,15 +348,6 @@ class SarcasmService:
             except Exception:
                 return heuristic_token_attributions(text)
         return heuristic_token_attributions(text)
-
-
-def _adjust_isolated(p_sarc: float, text: str) -> float:
-    """Light prior for isolated lines. Does not override a strong model score."""
-    if _IRONY.search(text or ""):
-        return float(np.clip(max(p_sarc, 0.66), 0.02, 0.98))
-    if _SINCERE.search(text or "") and not _IRONY.search(text or ""):
-        return float(np.clip(min(p_sarc, 0.38), 0.02, 0.98))
-    return float(np.clip(p_sarc, 0.02, 0.98))
 
 
 def _heuristic_av_cues(audio: np.ndarray, visual_h: np.ndarray, transcript: str) -> dict:
